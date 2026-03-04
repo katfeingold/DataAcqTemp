@@ -2,6 +2,13 @@
 Download RTMA temperature (TMP) GRIB2 files from the IA State Mesonet archive
 for a user-specified date/time range, saving them to a chosen folder.
 """
+#----------------------------------------------------------------
+# Author (so you know who to yell at) Kat Feingold
+# Last updated: 3/3/2026
+# Updated Changes:
+# 3/2/2026 - script created
+#----------------------------------------------------------------
+
 
 import urllib.request
 from urllib.error import HTTPError
