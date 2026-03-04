@@ -149,9 +149,9 @@ async def main_async(destination):
 
 
 def show_completion_popup():
-    """
-    Show a simple popup that just says the script is complete.
-    """
+    # ------------------------------------------
+    # This shows a simple script complete dialog
+    # ------------------------------------------
     root = tk.Tk()
     root.withdraw()
     messagebox.showinfo("NDFD AirTemp Download", "Download completed.")
