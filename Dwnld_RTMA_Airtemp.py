@@ -1,6 +1,6 @@
 """
-Download RTMA temperature (TMP) GRIB2 files from the IA State Mesonet archive
-for a user-specified date/time range, saving them to a chosen folder.
+This will Download RTMA temperature (TMP) GRIB2 files from the IA State Mesonet archive
+for a date/time range, and save them to a chosen folder.
 """
 #----------------------------------------------------------------
 # Author (so you know who to yell at) Kat Feingold
