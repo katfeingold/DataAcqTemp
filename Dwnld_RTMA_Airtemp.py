@@ -347,9 +347,10 @@ def download_rtma(start, end, destination):
 
 
 
-def show_completion_popup(saved_files, missing_dates):
+def show_completion_popup(saved_files, missing_dates, destination):
     """
     Show a popup summarizing:
+      - destination folder
       - which files were saved and where
       - whether any dates were missing
 
@@ -380,16 +381,25 @@ def show_completion_popup(saved_files, missing_dates):
         row=0, column=0, columnspan=2, sticky="w", pady=(0, 5)
     )
 
+    # Destination folder line (your new request)
+    tk.Label(
+        frame,
+        text=f"Destination folder: {destination}",
+        anchor="w",
+        justify="left",
+        wraplength=600,
+    ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 5))
+
     # List label
     tk.Label(frame, text="Saved files:").grid(
-        row=1, column=0, columnspan=2, sticky="w"
+        row=2, column=0, columnspan=2, sticky="w"
     )
 
     # Listbox + vertical scrollbar
     list_frame = tk.Frame(frame)
-    list_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(2, 5))
+    list_frame.grid(row=3, column=0, columnspan=2, sticky="nsew", pady=(2, 5))
 
-    frame.grid_rowconfigure(2, weight=1)
+    frame.grid_rowconfigure(3, weight=1)
     frame.grid_columnconfigure(0, weight=1)
 
     listbox = tk.Listbox(list_frame, height=10, width=80)
@@ -406,19 +416,19 @@ def show_completion_popup(saved_files, missing_dates):
     for path in saved_files:
         listbox.insert(tk.END, path)
 
-    # Missing dates (short text, no scroll needed usually)
+    # Missing dates (short text, separate area)
     if missing_dates:
         miss_label = tk.Label(frame, text="Missing dates (no file found or error):")
-        miss_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=(5, 0))
+        miss_label.grid(row=4, column=0, columnspan=2, sticky="w", pady=(5, 0))
 
         miss_text = tk.Text(frame, height=5, width=80, wrap="none")
         miss_scroll = tk.Scrollbar(frame, orient="vertical", command=miss_text.yview)
         miss_text.config(yscrollcommand=miss_scroll.set, state="normal")
 
-        miss_text.grid(row=4, column=0, sticky="nsew", pady=(2, 5))
-        miss_scroll.grid(row=4, column=1, sticky="ns", padx=(2, 0))
+        miss_text.grid(row=5, column=0, sticky="nsew", pady=(2, 5))
+        miss_scroll.grid(row=5, column=1, sticky="ns", padx=(2, 0))
 
-        frame.grid_rowconfigure(4, weight=1)
+        frame.grid_rowconfigure(5, weight=1)
 
         for d in missing_dates:
             miss_text.insert(tk.END, str(d) + "\n")
@@ -426,7 +436,7 @@ def show_completion_popup(saved_files, missing_dates):
 
     # Close button
     btn = tk.Button(frame, text="Close", width=10, command=win.destroy)
-    btn.grid(row=5, column=0, columnspan=2, pady=(8, 0))
+    btn.grid(row=6, column=0, columnspan=2, pady=(8, 0))
 
     # Center the window nicely
     win.update_idletasks()
@@ -461,4 +471,4 @@ if __name__ == "__main__":
         # Run download and show completion popup
         # --------------------------------------------
         saved, missing = download_rtma(start_dt, end_dt, dest)
-        show_completion_popup(saved, missing)
+        show_completion_popup(saved, missing, dest)
