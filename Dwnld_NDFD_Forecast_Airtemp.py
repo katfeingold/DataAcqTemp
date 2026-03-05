@@ -128,15 +128,19 @@ def get_destination_folder():
     root = tk.Tk()
     root.withdraw()  
 
+
     dest = filedialog.askdirectory(
         title="Select folder to save NDFD forecast temperature files"
     )
 
+
     root.destroy()
+
 
     if not dest:
         print("No folder selected. Exiting.")
         return None
+
 
     return dest
 
@@ -149,6 +153,7 @@ async def download_file(session, url, out_path_bin, out_path_grib2, saved_files)
     # ------------------------------------------------------------
     os.makedirs(os.path.dirname(out_path_bin), exist_ok=True)
 
+
     try:
         # ---------------------------------------
         # Overall timeout for the HTTP request
@@ -157,6 +162,7 @@ async def download_file(session, url, out_path_bin, out_path_grib2, saved_files)
             async with session.get(url) as response:
                 if response.status == 200:
                     print(f"Downloading {url} -> {out_path_bin} and {out_path_grib2}")
+
 
                     # ------------------------------------------
                     # Reads  into memory
@@ -167,17 +173,22 @@ async def download_file(session, url, out_path_bin, out_path_grib2, saved_files)
                             break
                         data.extend(chunk)
 
+
                     # ------------------------------------------ 
                     # Write .bin copy , the native file on the site
                     # ------------------------------------------
                     with open(out_path_bin, "wb") as f_bin:
                         f_bin.write(data)
 
+
                     # ------------------------------------------ 
                     # Write .grib2 copy (same files, different extension)
                     # ------------------------------------------
+
+
                     with open(out_path_grib2, "wb") as f_grb:
                         f_grb.write(data)
+
 
                     # ------------------------------------------ 
                     # Track saved files
@@ -204,10 +215,13 @@ async def download_file(session, url, out_path_bin, out_path_grib2, saved_files)
 
 async def main_async(destination):
 
+
     saved_files = []
+
 
     async with aiohttp.ClientSession() as session:
         tasks = []
+
 
         # ------------------------------------------
         # Build download tasks for each VP directory
@@ -215,14 +229,17 @@ async def main_async(destination):
         for vp_dir, suffix in VP_DIRS:
             url = f"{BASE_URL}/{vp_dir}/ds.temp.bin"
 
+
             # -------------------------------------------------------------- 
             # Output filenames: one .bin and one .grib2 for each VP range
             # --------------------------------------------------------------
             out_name_bin = f"ds.temp.{suffix}.bin"
             out_name_grib2 = f"ds.temp.{suffix}.grib2"
 
+
             out_path_bin = os.path.join(destination, out_name_bin)
             out_path_grib2 = os.path.join(destination, out_name_grib2)
+
 
             tasks.append(
                 download_file(
@@ -230,20 +247,25 @@ async def main_async(destination):
                 )
             )
 
+
         # ------------------------------------------
         # Run all downloads concurrently, i like Async
         # ------------------------------------------
         await asyncio.gather(*tasks)
 
+
     return saved_files
 
 
 
-def show_completion_popup(saved_files):
+def show_completion_popup(saved_files, destination):
     # --------------------------------------------------------
     #Show a Tkinter popup indicating that the script completed
     # and list only the .grib2 files that were saved.
+    #
+    # Uses a scrollable list so the window doesn't fill the whole screen.
     # ---------------------------------------------------------
+
 
     # Filter to include only GRIB2 files in the message
     # -----------------------------------------------------------
@@ -252,12 +274,73 @@ def show_completion_popup(saved_files):
     root = tk.Tk()
     root.withdraw()
 
-    if grib_files:
-        msg = "Download completed.\n\nSaved GRIB2 files:\n" + "\n".join(grib_files)
-    else:
-        msg = "Download completed, but no GRIB2 files were saved."
+    win = tk.Toplevel(root)
+    win.title("NDFD Download")
+    win.resizable(True, True)
 
-    messagebox.showinfo("NDFD Download", msg)
+    frame = tk.Frame(win, padx=10, pady=10)
+    frame.grid(row=0, column=0, sticky="nsew")
+
+    win.grid_rowconfigure(0, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+
+    if grib_files:
+        summary_text = f"Download completed. Saved {len(grib_files)} GRIB2 file(s)."
+    else:
+        summary_text = "Download completed, but no GRIB2 files were saved."
+
+    tk.Label(frame, text=summary_text).grid(
+        row=0, column=0, columnspan=2, sticky="w", pady=(0, 5)
+    )
+
+    # Destination folder line
+    tk.Label(
+        frame,
+        text=f"Destination folder: {destination}",
+        anchor="w",
+        justify="left",
+        wraplength=600,
+    ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 5))
+
+    tk.Label(frame, text="Saved GRIB2 files:").grid(
+        row=2, column=0, columnspan=2, sticky="w"
+    )
+
+    list_frame = tk.Frame(frame)
+    list_frame.grid(row=3, column=0, columnspan=2, sticky="nsew", pady=(2, 5))
+
+    frame.grid_rowconfigure(3, weight=1)
+    frame.grid_columnconfigure(0, weight=1)
+
+    listbox = tk.Listbox(list_frame, height=10, width=80)
+    scrollbar = tk.Scrollbar(list_frame, orient="vertical", command=listbox.yview)
+    listbox.config(yscrollcommand=scrollbar.set)
+
+    listbox.grid(row=0, column=0, sticky="nsew")
+    scrollbar.grid(row=0, column=1, sticky="ns")
+
+    list_frame.grid_rowconfigure(0, weight=1)
+    list_frame.grid_columnconfigure(0, weight=1)
+
+    for path in grib_files:
+        listbox.insert(tk.END, path)
+
+    btn = tk.Button(frame, text="Close", width=10, command=win.destroy)
+    btn.grid(row=4, column=0, columnspan=2, pady=(8, 0))
+
+    win.update_idletasks()
+    w = win.winfo_width()
+    h = win.winfo_height()
+    sw = win.winfo_screenwidth()
+    sh = win.winfo_screenheight()
+    x = (sw // 2) - (w // 2)
+    y = (sh // 2) - (h // 2)
+    win.geometry(f"+{x}+{y}")
+    win.attributes("-topmost", True)
+    win.lift()
+
+    win.grab_set()
+    root.wait_window(win)
     root.destroy()
 
 
@@ -288,7 +371,7 @@ def main():
     # ------------------------------------
     # Show completion popup to the user
     # -------------------------------------
-    show_completion_popup(saved_files)
+    show_completion_popup(saved_files, dest)
 
 
 
