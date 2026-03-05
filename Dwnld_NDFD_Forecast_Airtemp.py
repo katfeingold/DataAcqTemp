@@ -1,22 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Downloads the NDFD CONUS ( this is CONUS ONLY) forecast air temperature files (ds.temp.bin)
+This thing downloads the NDFD CONUS (this is CONUS ONLY) forecast air temperature files (ds.temp.bin)
 from the VP.001-003 and VP.004-007 directories, save each as: a .bin copy, and  a .grib2 copy,
 then show a popup listing only the .grib2 files saved.
 
-
 """
-
 
 import os
 import nest_asyncio
-nest_asyncio.apply()  
+nest_asyncio.apply()   # allow asyncio in environments that already have a loop
 import asyncio
 import aiohttp
 import async_timeout
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk  # ttk for Progressbar
-
+from tkinter import filedialog, messagebox
 
 
 # ----------------------------------------------------------
@@ -123,7 +120,7 @@ def close_progress_window():
 def get_destination_folder():
 
     root = tk.Tk()
-    root.withdraw()  
+    root.withdraw()  # hide the root window, we just want the dialog
 
     dest = filedialog.askdirectory(
         title="Select folder to save NDFD Airtemp forecast temperature files"
@@ -140,7 +137,6 @@ def get_destination_folder():
 
 
 async def download_file(session, url, out_path_bin, out_path_grib2, saved_files):
- 
     # ------------------------------------------------------------
     # Ensure destination folder exists, it thinks therefore it is
     # ------------------------------------------------------------
@@ -153,10 +149,12 @@ async def download_file(session, url, out_path_bin, out_path_grib2, saved_files)
         async with async_timeout.timeout(600):
             async with session.get(url) as response:
                 if response.status == 200:
-                    print(f"Downloading {url} -> {out_path_bin} and {out_path_grib2}")
+                    print(f"Downloading {url} ->")
+                    print(f"  {out_path_bin}")
+                    print(f"  {out_path_grib2}")
 
                     # ------------------------------------------
-                    # Reads  into memory
+                    # Reads into memory
                     # ------------------------------------------
                     data = bytearray()
                     async for chunk in response.content.iter_chunked(8192):
@@ -164,32 +162,32 @@ async def download_file(session, url, out_path_bin, out_path_grib2, saved_files)
                             break
                         data.extend(chunk)
 
-                    # ------------------------------------------ 
+                    # ------------------------------------------
                     # Write .bin copy , the native file on the site
                     # ------------------------------------------
                     with open(out_path_bin, "wb") as f_bin:
                         f_bin.write(data)
 
-                    # ------------------------------------------ 
+                    # ------------------------------------------
                     # Write .grib2 copy (same files, different extension)
                     # ------------------------------------------
                     with open(out_path_grib2, "wb") as f_grb:
                         f_grb.write(data)
 
-                    # ------------------------------------------ 
+                    # ------------------------------------------
                     # Track saved files
                     # ------------------------------------------
                     saved_files.append(out_path_bin)
                     saved_files.append(out_path_grib2)
                 else:
-                    # ------------------------------------------ 
-                    # Non-200 HTTP status jsut in case
+                    # ------------------------------------------
+                    # Non-200 HTTP status just in case
                     # ------------------------------------------
                     print(f"MISSING (HTTP {response.status}): {url}")
     except Exception as e:
-        # ------------------------------------------ 
-        # Catch and log  errors
-        # ------------------------------------------ 
+        # ------------------------------------------
+        # Catch and log errors
+        # ------------------------------------------
         print(f"ERROR for {url}: {e}")
     finally:
         # ------------------------------------------
@@ -200,7 +198,6 @@ async def download_file(session, url, out_path_bin, out_path_grib2, saved_files)
 
 
 async def main_async(destination):
-
     saved_files = []
 
     async with aiohttp.ClientSession() as session:
@@ -212,7 +209,7 @@ async def main_async(destination):
         for vp_dir, suffix in VP_DIRS:
             url = f"{BASE_URL}/{vp_dir}/ds.temp.bin"
 
-            # -------------------------------------------------------------- 
+            # --------------------------------------------------------------
             # Output filenames: one .bin and one .grib2 for each VP range
             # --------------------------------------------------------------
             out_name_bin = f"ds.temp.{suffix}.bin"
@@ -236,25 +233,19 @@ async def main_async(destination):
 
 
 
-def show_completion_popup(saved_files):
-    # --------------------------------------------------------
-    #Show a Tkinter popup indicating that the script completed
-    # and list only the .grib2 files that were saved.
-    # ---------------------------------------------------------
-
-    # Filter to include only GRIB2 files in the message
-    # -----------------------------------------------------------
-    grib_files = [f for f in saved_files if f.lower().endswith(".grib2")]
-
+def show_completion_popup():
+    # ------------------------------------------
+    # This shows a simple script complete dialog
+    # ------------------------------------------
     root = tk.Tk()
     root.withdraw()
 
     if grib_files:
-        msg = "Download completed.\n\nSaved Temperature files:\n" + "\n".join(grib_files)
+        msg = "Download completed.\n\nSaved GRIB2 files:\n" + "\n".join(grib_files)
     else:
-        msg = "Download completed, but no Temperature files were saved."
+        msg = "Download completed, but no GRIB2 files were saved."
 
-    messagebox.showinfo("NDFD Temperature Download", msg)
+    messagebox.showinfo("NDFD Download", msg)
     root.destroy()
 
 
@@ -263,29 +254,20 @@ def main():
     # ------------------------------------------
     # This is what does the thing!!!!
     # ------------------------------------------
-    
     dest = get_destination_folder()
     if not dest:
         return
 
-    # only create the progress window AFTER folder selection
-    create_progress_window(len(VP_DIRS))
-
-    try:
-        # ---------------------------------------------------- 
-        # Run the asynchronous part and get list of saved files
-        # -----------------------------------------------------
-        saved_files = asyncio.run(main_async(dest))
-    finally:
-        # ------------------------------------
-        # Close progress window
-        # ------------------------------------
-        close_progress_window()
+    # ---------------------------------------------------- 
+    # Run the asynchronous part and get list of saved files
+    # -----------------------------------------------------
+    saved_files = asyncio.run(main_async(dest))
 
     # ------------------------------------
     # Show completion popup to the user
-    # -------------------------------------
-    show_completion_popup(saved_files)
+    # ------------------------------------
+    show_completion_popup()  # <-- no arguments
+
 
 
 
