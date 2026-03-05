@@ -348,29 +348,100 @@ def download_rtma(start, end, destination):
 
 
 def show_completion_popup(saved_files, missing_dates):
+    """
+    Show a popup summarizing:
+      - which files were saved and where
+      - whether any dates were missing
 
+    Uses a scrollable list so the window doesn't fill the whole screen.
+    """
     root = tk.Tk()
     root.withdraw()
 
-    lines = []
+    # Small top-level window
+    win = tk.Toplevel(root)
+    win.title("RTMA Download")
+    win.resizable(True, True)
 
+    # Frame for everything
+    frame = tk.Frame(win, padx=10, pady=10)
+    frame.grid(row=0, column=0, sticky="nsew")
+
+    win.grid_rowconfigure(0, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+
+    # Summary label
     if saved_files:
-        lines.append("Download completed.")
-        lines.append("")
-        lines.append("Saved files:")
-        lines.extend(saved_files)
+        summary_text = f"Download completed. Saved {len(saved_files)} file(s)."
     else:
-        lines.append("Download completed, but no files were saved.")
+        summary_text = "Download completed, but no files were saved."
 
+    tk.Label(frame, text=summary_text).grid(
+        row=0, column=0, columnspan=2, sticky="w", pady=(0, 5)
+    )
+
+    # List label
+    tk.Label(frame, text="Saved files:").grid(
+        row=1, column=0, columnspan=2, sticky="w"
+    )
+
+    # Listbox + vertical scrollbar
+    list_frame = tk.Frame(frame)
+    list_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=(2, 5))
+
+    frame.grid_rowconfigure(2, weight=1)
+    frame.grid_columnconfigure(0, weight=1)
+
+    listbox = tk.Listbox(list_frame, height=10, width=80)
+    scrollbar = tk.Scrollbar(list_frame, orient="vertical", command=listbox.yview)
+    listbox.config(yscrollcommand=scrollbar.set)
+
+    listbox.grid(row=0, column=0, sticky="nsew")
+    scrollbar.grid(row=0, column=1, sticky="ns")
+
+    list_frame.grid_rowconfigure(0, weight=1)
+    list_frame.grid_columnconfigure(0, weight=1)
+
+    # Populate listbox with saved files
+    for path in saved_files:
+        listbox.insert(tk.END, path)
+
+    # Missing dates (short text, no scroll needed usually)
     if missing_dates:
-        lines.append("")
-        lines.append("Missing dates (no file found or error):")
+        miss_label = tk.Label(frame, text="Missing dates (no file found or error):")
+        miss_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=(5, 0))
+
+        miss_text = tk.Text(frame, height=5, width=80, wrap="none")
+        miss_scroll = tk.Scrollbar(frame, orient="vertical", command=miss_text.yview)
+        miss_text.config(yscrollcommand=miss_scroll.set, state="normal")
+
+        miss_text.grid(row=4, column=0, sticky="nsew", pady=(2, 5))
+        miss_scroll.grid(row=4, column=1, sticky="ns", padx=(2, 0))
+
+        frame.grid_rowconfigure(4, weight=1)
+
         for d in missing_dates:
-            lines.append(str(d))
+            miss_text.insert(tk.END, str(d) + "\n")
+        miss_text.config(state="disabled")
 
-    msg = "\n".join(lines)
+    # Close button
+    btn = tk.Button(frame, text="Close", width=10, command=win.destroy)
+    btn.grid(row=5, column=0, columnspan=2, pady=(8, 0))
 
-    messagebox.showinfo("RTMA Temperature Download", msg)
+    # Center the window nicely
+    win.update_idletasks()
+    w = win.winfo_width()
+    h = win.winfo_height()
+    sw = win.winfo_screenwidth()
+    sh = win.winfo_screenheight()
+    x = (sw // 2) - (w // 2)
+    y = (sh // 2) - (h // 2)
+    win.geometry(f"+{x}+{y}")
+    win.attributes("-topmost", True)
+    win.lift()
+
+    win.grab_set()
+    root.wait_window(win)
     root.destroy()
 
 
