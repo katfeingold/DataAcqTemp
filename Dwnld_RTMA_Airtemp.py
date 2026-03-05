@@ -10,17 +10,105 @@ for a date/time range, and save them to a chosen folder.
 #----------------------------------------------------------------
 
 
+
 import urllib.request
 from urllib.error import HTTPError
 from datetime import datetime, timedelta
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk  # ttk for Progressbar
+
+
 
 # --------------------------------------------
 # Expected format for user-entered datetimes
 # --------------------------------------------
 DATE_FORMAT = "%Y-%m-%d %H:%M"
+
+
+
+# --------------------------------------------------------
+# Simple progress bar globals (similar style to other scripts)
+# --------------------------------------------------------
+_progress_root = None
+_progress_var = None
+_progress_label = None
+_progress_total = 0
+
+
+def create_progress_window(total_steps: int):
+    """
+    Create a small Tk window with a determinate progress bar showing
+    how many RTMA files (hours) have been processed out of total_steps.
+    """
+    global _progress_root, _progress_var, _progress_label, _progress_total
+    _progress_total = total_steps
+
+    _progress_root = tk.Tk()
+    _progress_root.title("RTMA Download Progress")
+    _progress_root.resizable(False, False)
+
+    frame = ttk.Frame(_progress_root, padding=10)
+    frame.grid(row=0, column=0, sticky="nsew")
+
+    _progress_var = tk.IntVar(value=0)
+
+    ttk.Label(frame, text="Downloading RTMA temperature files...").grid(
+        row=0, column=0, sticky="w"
+    )
+
+    bar = ttk.Progressbar(
+        frame,
+        orient="horizontal",
+        mode="determinate",
+        maximum=total_steps,
+        variable=_progress_var,
+        length=300,
+    )
+    bar.grid(row=1, column=0, pady=(5, 5))
+
+    _progress_label = ttk.Label(frame, text=f"0 of {total_steps} hours")
+    _progress_label.grid(row=2, column=0, sticky="w")
+
+    # Center the window a bit
+    _progress_root.update_idletasks()
+    w = _progress_root.winfo_width()
+    h = _progress_root.winfo_height()
+    sw = _progress_root.winfo_screenwidth()
+    sh = _progress_root.winfo_screenheight()
+    x = (sw // 2) - (w // 2)
+    y = (sh // 2) - (h // 2)
+    _progress_root.geometry(f"+{x}+{y}")
+    _progress_root.attributes("-topmost", True)
+    _progress_root.lift()
+
+    _progress_root.update()
+
+
+def update_progress_window():
+    """
+    Increment the file counter and refresh the progress window.
+    """
+    global _progress_root, _progress_var, _progress_label, _progress_total
+    if _progress_root is None:
+        return
+
+    current = _progress_var.get() + 1
+    _progress_var.set(current)
+    if _progress_label is not None:
+        _progress_label.config(text=f"{current} of {_progress_total} hours")
+    _progress_root.update_idletasks()
+
+
+def close_progress_window():
+    """
+    Close and destroy the progress window if it exists.
+    """
+    global _progress_root
+    if _progress_root is not None:
+        _progress_root.destroy()
+        _progress_root = None
+
 
 
 def get_user_inputs():
@@ -163,11 +251,13 @@ def get_user_inputs():
     return start_dt, end_dt, dest
 
 
+
 def download_rtma(start, end, destination):
     """
     Loop hourly between 'start' (inclusive) and 'end' (exclusive),
     building RTMA TMP GRIB2 URLs and saving any existing files
     into 'destination'.
+
 
     Returns:
         saved_files: list of full paths to successfully saved files
@@ -177,54 +267,71 @@ def download_rtma(start, end, destination):
     missing_dates = []
     saved_files = []
 
+    # --------------------------------------------
+    # Pre-compute number of hours for progress bar
+    # --------------------------------------------
+    total_steps = int((end - start).total_seconds() // 3600)
+    if total_steps < 1:
+        total_steps = 1  # just in case
+    create_progress_window(total_steps)
+
     date = start
-    while date < end:
-        # ------------------------------------------------------------
-        # Build the IA State Mesonet RTMA URL for this date/hour
-        # ------------------------------------------------------------
-        url = (
-            "http://mtarchive.geol.iastate.edu/{:04d}/{:02d}/{:02d}/grib2/ncep/RTMA/"
-            "{:04d}{:02d}{:02d}{:02d}00_TMP.grib2"
-        ).format(
-            date.year,
-            date.month,
-            date.day,
-            date.year,
-            date.month,
-            date.day,
-            date.hour,
-        )
+    try:
+        while date < end:
+            # ------------------------------------------------------------
+            # Build the IA State Mesonet RTMA URL for this date/hour
+            # ------------------------------------------------------------
+            url = (
+                "http://mtarchive.geol.iastate.edu/{:04d}/{:02d}/{:02d}/grib2/ncep/RTMA/"
+                "{:04d}{:02d}{:02d}{:02d}00_TMP.grib2"
+            ).format(
+                date.year,
+                date.month,
+                date.day,
+                date.year,
+                date.month,
+                date.day,
+                date.hour,
+            )
 
-        filename = os.path.basename(url)
-        print(f"Processing {date} -> {filename}")
+            filename = os.path.basename(url)
+            print(f"Processing {date} -> {filename}")
 
-        try:
-            # --------------------------------------------
-            # Retrieve the GRIB2 file
-            # --------------------------------------------
-            with urllib.request.urlopen(url) as response:
-                data = response.read()
-        except HTTPError as e:
-            print(f"  MISSING (HTTP {e.code})")
-            missing_dates.append(date)
-        except Exception as e:
-            print(f"  ERROR: {e}")
-            missing_dates.append(date)
-        else:
-            # --------------------------------------------
-            # Save to destination folder
-            # --------------------------------------------
-            os.makedirs(destination, exist_ok=True)
-            out_path = os.path.join(destination, filename)
-            with open(out_path, "wb") as f:
-                f.write(data)
-            print(f"  Saved to {out_path}")
-            saved_files.append(out_path)
+            try:
+                # --------------------------------------------
+                # Retrieve the GRIB2 file
+                # --------------------------------------------
+                with urllib.request.urlopen(url) as response:
+                    data = response.read()
+            except HTTPError as e:
+                print(f"  MISSING (HTTP {e.code})")
+                missing_dates.append(date)
+            except Exception as e:
+                print(f"  ERROR: {e}")
+                missing_dates.append(date)
+            else:
+                # --------------------------------------------
+                # Save to destination folder
+                # --------------------------------------------
+                os.makedirs(destination, exist_ok=True)
+                out_path = os.path.join(destination, filename)
+                with open(out_path, "wb") as f:
+                    f.write(data)
+                print(f"  Saved to {out_path}")
+                saved_files.append(out_path)
 
-        # --------------------------------------------
-        # Advance to next hour
-        # --------------------------------------------
-        date += hour
+            # --------------------------------------------
+            # Advance to next hour
+            # --------------------------------------------
+            date += hour
+
+            # --------------------------------------------
+            # Update progress after each hour processed
+            # --------------------------------------------
+            update_progress_window()
+    finally:
+        # always close the progress window at the end
+        close_progress_window()
 
     # --------------------------------------------
     # summary
@@ -239,12 +346,9 @@ def download_rtma(start, end, destination):
     return saved_files, missing_dates
 
 
+
 def show_completion_popup(saved_files, missing_dates):
-    """
-    Show a popup summarizing:
-      - which files were saved and where
-      - whether any dates were missing
-    """
+
     root = tk.Tk()
     root.withdraw()
 
@@ -266,8 +370,9 @@ def show_completion_popup(saved_files, missing_dates):
 
     msg = "\n".join(lines)
 
-    messagebox.showinfo("RTMA Download", msg)
+    messagebox.showinfo("RTMA Temperature Download", msg)
     root.destroy()
+
 
 
 if __name__ == "__main__":
