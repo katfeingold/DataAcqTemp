@@ -4,7 +4,9 @@ Downloads the NDFD CONUS ( this is CONUS ONLY) forecast air temperature files (d
 from the VP.001-003 and VP.004-007 directories, save each as: a .bin copy, and  a .grib2 copy,
 then show a popup listing only the .grib2 files saved.
 
+
 """
+
 
 import os
 import nest_asyncio
@@ -13,13 +15,15 @@ import asyncio
 import aiohttp
 import async_timeout
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk  # ttk for Progressbar
+
 
 
 # ----------------------------------------------------------
 # Base URL for CONUS NDFD data
 # ----------------------------------------------------------
 BASE_URL = "https://tgftp.nws.noaa.gov/SL.us008001/ST.opnl/DF.gr2/DC.ndfd/AR.conus"
+
 
 #----------------------------------------------------------------------------------------
 #  Identifies the VP directories to download from and the suffix used in output filenames
@@ -32,16 +36,97 @@ VP_DIRS = [
 ]
 
 
+# --------------------------------------------------------
+# Simple progress bar globals (similar style to QPF script)
+# --------------------------------------------------------
+_progress_root = None
+_progress_var = None
+_progress_label = None
+_progress_total = 0
+
+
+def create_progress_window(total_files: int):
+    #---------------------------------------------------------------------
+    #Create a small Tk window with a determinate progress bar showing
+    #how many files have been downloaded out of total_files.
+    #-----------------------------------------------------------------------
+    global _progress_root, _progress_var, _progress_label, _progress_total
+    _progress_total = total_files
+
+    _progress_root = tk.Tk()
+    _progress_root.title("NDFD Download Progress")
+    _progress_root.resizable(False, False)
+
+    frame = ttk.Frame(_progress_root, padding=10)
+    frame.grid(row=0, column=0, sticky="nsew")
+
+    _progress_var = tk.IntVar(value=0)
+
+    ttk.Label(frame, text="Downloading NDFD temperature files...").grid(
+        row=0, column=0, sticky="w"
+    )
+
+    bar = ttk.Progressbar(
+        frame,
+        orient="horizontal",
+        mode="determinate",
+        maximum=total_files,
+        variable=_progress_var,
+        length=300,
+    )
+    bar.grid(row=1, column=0, pady=(5, 5))
+
+    _progress_label = ttk.Label(frame, text=f"0 of {total_files} files")
+    _progress_label.grid(row=2, column=0, sticky="w")
+
+    # Center the window a bit
+    _progress_root.update_idletasks()
+    w = _progress_root.winfo_width()
+    h = _progress_root.winfo_height()
+    sw = _progress_root.winfo_screenwidth()
+    sh = _progress_root.winfo_screenheight()
+    x = (sw // 2) - (w // 2)
+    y = (sh // 2) - (h // 2)
+    _progress_root.geometry(f"+{x}+{y}")
+    _progress_root.attributes("-topmost", True)
+    _progress_root.lift()
+
+    _progress_root.update()
+
+
+def update_progress_window():
+    #------------------------------------------------------------
+    #Increment the file counter and refresh the progress window.
+    #-----------------------------------------------------------
+    global _progress_root, _progress_var, _progress_label, _progress_total
+    if _progress_root is None:
+        return
+
+    current = _progress_var.get() + 1
+    _progress_var.set(current)
+    if _progress_label is not None:
+        _progress_label.config(text=f"{current} of {_progress_total} files")
+    _progress_root.update_idletasks()
+
+
+def close_progress_window():
+    """
+    Close and destroy the progress window if it exists.
+    """
+    global _progress_root
+    if _progress_root is not None:
+        _progress_root.destroy()
+        _progress_root = None
+
+
+
 def get_destination_folder():
-    """
-    Show a folder selection dialog and return the chosen path.
-    If the user cancels, return None.
-    """
+
     root = tk.Tk()
     root.withdraw()  
 
     dest = filedialog.askdirectory(
-        title="Select folder to save NDFD forecast temperature files"
+        title="Select folder to save NDFD Airtemp forecast temperature files"
     )
 
     root.destroy()
@@ -51,6 +136,7 @@ def get_destination_folder():
         return None
 
     return dest
+
 
 
 async def download_file(session, url, out_path_bin, out_path_grib2, saved_files):
@@ -87,7 +173,6 @@ async def download_file(session, url, out_path_bin, out_path_grib2, saved_files)
                     # ------------------------------------------ 
                     # Write .grib2 copy (same files, different extension)
                     # ------------------------------------------
-
                     with open(out_path_grib2, "wb") as f_grb:
                         f_grb.write(data)
 
@@ -106,6 +191,12 @@ async def download_file(session, url, out_path_bin, out_path_grib2, saved_files)
         # Catch and log  errors
         # ------------------------------------------ 
         print(f"ERROR for {url}: {e}")
+    finally:
+        # ------------------------------------------
+        # Update progress whether success or failure
+        # ------------------------------------------
+        update_progress_window()
+
 
 
 async def main_async(destination):
@@ -144,6 +235,7 @@ async def main_async(destination):
     return saved_files
 
 
+
 def show_completion_popup(saved_files):
     # --------------------------------------------------------
     #Show a Tkinter popup indicating that the script completed
@@ -158,12 +250,13 @@ def show_completion_popup(saved_files):
     root.withdraw()
 
     if grib_files:
-        msg = "Download completed.\n\nSaved GRIB2 files:\n" + "\n".join(grib_files)
+        msg = "Download completed.\n\nSaved Temperature files:\n" + "\n".join(grib_files)
     else:
-        msg = "Download completed, but no GRIB2 files were saved."
+        msg = "Download completed, but no Temperature files were saved."
 
-    messagebox.showinfo("NDFD Download", msg)
+    messagebox.showinfo("NDFD Temperature Download", msg)
     root.destroy()
+
 
 
 def main():
@@ -175,15 +268,25 @@ def main():
     if not dest:
         return
 
-    # ---------------------------------------------------- 
-    # Run the asynchronous part and get list of saved files
-    # -----------------------------------------------------
-    saved_files = asyncio.run(main_async(dest))
+    # only create the progress window AFTER folder selection
+    create_progress_window(len(VP_DIRS))
+
+    try:
+        # ---------------------------------------------------- 
+        # Run the asynchronous part and get list of saved files
+        # -----------------------------------------------------
+        saved_files = asyncio.run(main_async(dest))
+    finally:
+        # ------------------------------------
+        # Close progress window
+        # ------------------------------------
+        close_progress_window()
 
     # ------------------------------------
     # Show completion popup to the user
     # -------------------------------------
     show_completion_popup(saved_files)
+
 
 
 if __name__ == "__main__":
